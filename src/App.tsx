@@ -1,0 +1,316 @@
+import { useCallback, useEffect, useState } from 'react';
+import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+
+import { HomePage } from '@/pages/HomePage';
+import { GamePage, type GameOutcome } from '@/pages/GamePage';
+import { ResultPage } from '@/pages/ResultPage';
+import { LeaderboardPage } from '@/pages/LeaderboardPage';
+import { LoginPage } from '@/pages/LoginPage';
+import { RegisterPage } from '@/pages/RegisterPage';
+import { ProfilePage } from '@/pages/ProfilePage';
+import { AdminPage } from '@/pages/admin/AdminPage';
+import { BottomNav, type Page } from '@/components/BottomNav';
+import { AuthContext, useAuth } from '@/context/AuthContext';
+import { AdProvider, useAdContext } from '@/context/AdContext';
+import { useAuthProvider } from '@/hooks/useAuthProvider';
+import { useTheme } from '@/hooks/useTheme';
+import { useUserStats } from '@/hooks/useUserStats';
+import { InterstitialAd } from '@/components/ads/InterstitialAd';
+import { adConfig } from './config/ads';
+
+type Route = Page | 'result' | 'login' | 'register' | 'admin';
+
+function AppInner() {
+  const { theme, toggle } = useTheme();
+  const auth = useAuth();
+  const { stats, refresh } = useUserStats();
+  const adCtx = useAdContext();
+
+  const [route, setRoute] = useState<Route>('home');
+  const [outcome, setOutcome] = useState<GameOutcome | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [wasGuest, setWasGuest] = useState(false);
+  const [interstitialOpen, setInterstitialOpen] = useState(false);
+  const [pendingResult, setPendingResult] = useState(false);
+
+  // useEffect(() => {
+  //   const showBanner = async () => {
+  //     try {
+  //       await AdMob.initialize();
+  //       await AdMob.showBanner({
+  //         adId: adConfig.unitIds.banner,
+  //         adSize: BannerAdSize.ADAPTIVE_BANNER,
+  //         position: BannerAdPosition.BOTTOM_CENTER,
+  //         margin: 0,
+  //         isTesting: false,
+  //       });
+  //     } catch (error) {
+  //       console.error('AdMob Banner Error:', error);
+  //     }
+  //   };
+
+  //   showBanner();
+
+  //   return () => {
+  //     AdMob.removeBanner().catch(() => { });
+  //   };
+  // }, []);
+
+
+  useEffect(() => {
+    const showBanner = async () => {
+      try {
+        await AdMob.initialize();
+
+        await AdMob.showBanner({
+          adId: adConfig.unitIds.banner,
+          adSize: BannerAdSize.BANNER,
+          position: BannerAdPosition.BOTTOM_CENTER,
+          margin: 0,
+          isTesting: true,
+        });
+
+        console.log('[APP BANNER] Banner shown');
+      } catch (error) {
+        console.error('[APP BANNER] Error:', error);
+      }
+    };
+
+    showBanner();
+  }, []);
+
+  const navigate = useCallback((p: Page) => {
+    console.log('[APP] NAVIGATE request', {
+      target: p,
+      currentRoute: route,
+      hasOutcome: Boolean(outcome),
+      outcomeGameResultId: outcome?.gameResultId ?? null,
+    });
+
+    setRoute(p);
+  }, [outcome, route]);
+
+  const handleFinish = useCallback(
+    async (o: GameOutcome) => {
+      console.log('[APP] GAME FINISHED -> storing current outcome', o);
+      setSaving(true);
+      setSaveError(false);
+
+      const wasLoggedIn = !!auth.user;
+
+      try {
+        setWasGuest(false);
+        setOutcome(o);
+        console.log('[APP] outcome set after game finish', {
+          gameResultId: o.gameResultId,
+          score: o.score,
+          xpEarned: o.xpEarned,
+        });
+        await refresh();
+      } catch {
+        setSaveError(true);
+        setWasGuest(!wasLoggedIn);
+        setOutcome(o);
+      } finally {
+        setSaving(false);
+      }
+
+      const nextGameCount = adCtx.gamesSinceInterstitial + 1;
+
+      adCtx.incrementGameCount();
+
+      const frequency =
+        adCtx.settings?.interstitialFrequency ??
+        3;
+
+      if (
+        adCtx.adsActive &&
+        nextGameCount >= frequency
+      ) {
+        console.log(
+          `Interstitial triggered after game ${nextGameCount}`
+        );
+
+        setPendingResult(true);
+        setInterstitialOpen(true);
+      } else {
+        setRoute('result');
+      }
+    },
+    [refresh, auth.user, adCtx]
+  );
+
+  const handleInterstitialComplete = useCallback(() => {
+    console.log('Interstitial completed');
+
+    setInterstitialOpen(false);
+
+    adCtx.markInterstitialShown();
+
+    if (pendingResult) {
+      setPendingResult(false);
+      setRoute('result');
+    }
+  }, [adCtx, pendingResult]);
+
+  const handleInterstitialSkip = useCallback(() => {
+    console.log('Interstitial skipped/unavailable');
+
+    setInterstitialOpen(false);
+
+    adCtx.markInterstitialShown();
+
+    if (pendingResult) {
+      setPendingResult(false);
+      setRoute('result');
+    }
+  }, [adCtx, pendingResult]);
+
+  const exitToHome = useCallback(() => {
+    console.log('[APP] EXIT TO HOME -> clearing current outcome');
+    setOutcome(null);
+    setSaveError(false);
+    setWasGuest(false);
+    setRoute('home');
+  }, []);
+
+  const handleNavigate = useCallback(
+    (p: Page) => {
+      if (p === 'profile' && !auth.user) {
+        setRoute('login');
+        return;
+      }
+
+      navigate(p);
+    },
+    [auth.user, navigate]
+  );
+
+  return (
+    <div className="min-h-screen bg-ink-100 dark:bg-ink-950">
+
+      {route === 'home' && (
+        <HomePage
+          stats={stats}
+          theme={theme}
+          onToggleTheme={toggle}
+          onNavigate={handleNavigate}
+          isLoggedIn={!!auth.user}
+          onLogin={() => setRoute('login')}
+          onRegister={() => setRoute('register')}
+          onProfile={() => setRoute('profile')}
+        />
+      )}
+
+      {route === 'game' && (
+        <GamePage
+          onFinish={handleFinish}
+          onExit={exitToHome}
+        />
+      )}
+
+      {route === 'result' && outcome && (
+        <ResultPage
+          outcome={outcome}
+          stats={stats}
+          saving={saving}
+          saveError={saveError}
+          wasGuest={wasGuest && !auth.user}
+          onPlayAgain={() => {
+            setOutcome(null);
+            setRoute('game');
+          }}
+          onHome={() => {
+            setOutcome(null);
+            setRoute('home');
+          }}
+          onLeaderboard={() => {
+            setOutcome(null);
+            setRoute('leaderboard');
+          }}
+          onCreateAccount={() => {
+            setOutcome(null);
+            setRoute('register');
+          }}
+          onExit={exitToHome}
+          onRewardEarned={refresh}
+        />
+      )}
+
+      {route === 'leaderboard' && (
+        <LeaderboardPage onExit={exitToHome} />
+      )}
+
+      {route === 'login' && (
+        <LoginPage
+          onBack={exitToHome}
+          onSwitchToRegister={() => setRoute('register')}
+        />
+      )}
+
+      {route === 'register' && (
+        <RegisterPage
+          onBack={exitToHome}
+          onSwitchToLogin={() => setRoute('login')}
+        />
+      )}
+
+      {route === 'profile' && auth.user && (
+        <ProfilePage
+          theme={theme}
+          onToggleTheme={toggle}
+          onExit={exitToHome}
+          onAdmin={() => setRoute('admin')}
+        />
+      )}
+
+      {route === 'profile' && !auth.user && (
+        <LoginPage
+          onBack={exitToHome}
+          onSwitchToRegister={() => setRoute('register')}
+        />
+      )}
+
+      {route === 'admin' && (
+        <AdminPage
+          theme={theme}
+          onToggleTheme={toggle}
+          onExit={exitToHome}
+        />
+      )}
+
+      <BottomNav
+        current={
+          route === 'result' ||
+            route === 'login' ||
+            route === 'register' ||
+            route === 'admin'
+            ? 'home'
+            : (route as Page)
+        }
+        onNavigate={handleNavigate}
+        isLoggedIn={!!auth.user}
+      />
+
+      <InterstitialAd
+        open={interstitialOpen}
+        onComplete={handleInterstitialComplete}
+        onSkip={handleInterstitialSkip}
+      />
+
+    </div>
+  );
+}
+
+export default function App() {
+  const auth = useAuthProvider();
+
+  return (
+    <AdProvider>
+      <AuthContext.Provider value={auth}>
+        <AppInner />
+      </AuthContext.Provider>
+    </AdProvider>
+  );
+}
