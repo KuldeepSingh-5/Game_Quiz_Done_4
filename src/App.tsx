@@ -10,6 +10,7 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
+import DeleteAccountPage from '@/pages/DeleteAccountPage';
 import { BottomNav, type Page } from '@/components/BottomNav';
 import { AuthContext, useAuth } from '@/context/AuthContext';
 import { AdProvider, useAdContext } from '@/context/AdContext';
@@ -19,7 +20,7 @@ import { useUserStats } from '@/hooks/useUserStats';
 import { InterstitialAd } from '@/components/ads/InterstitialAd';
 import { adConfig } from './config/ads';
 
-type Route = Page | 'result' | 'login' | 'register' | 'admin' | 'privacy';
+type Route = Page | 'result' | 'login' | 'register' | 'admin' | 'privacy' | 'delete-account';
 
 function AppInner() {
   const { theme, toggle } = useTheme();
@@ -259,6 +260,10 @@ function AppInner() {
       )}
       {route === 'privacy' && (
         <PrivacyPolicyPage />
+      )}
+
+      {route === 'delete-account' && (
+        <DeleteAccountPage />
       )}
 
       <BottomNav
