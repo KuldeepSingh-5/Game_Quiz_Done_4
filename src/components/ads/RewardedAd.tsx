@@ -219,8 +219,8 @@ export function RewardedAd({
       console.log('[REWARDED AD] REWARDED AD LOADED');
 
       await AdMob.prepareRewardVideoAd({
-        adId: 'ca-app-pub-3940256099942544/5224354917',
-        isTesting: true,
+        adId: adConfig.unitIds.rewarded,
+        isTesting: adConfig.testing,
       });
 
       console.log('[REWARDED AD] REWARDED AD SHOWN');

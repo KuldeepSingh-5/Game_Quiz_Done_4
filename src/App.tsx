@@ -9,6 +9,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { AdminPage } from '@/pages/admin/AdminPage';
+import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
 import { BottomNav, type Page } from '@/components/BottomNav';
 import { AuthContext, useAuth } from '@/context/AuthContext';
 import { AdProvider, useAdContext } from '@/context/AdContext';
@@ -18,7 +19,7 @@ import { useUserStats } from '@/hooks/useUserStats';
 import { InterstitialAd } from '@/components/ads/InterstitialAd';
 import { adConfig } from './config/ads';
 
-type Route = Page | 'result' | 'login' | 'register' | 'admin';
+type Route = Page | 'result' | 'login' | 'register' | 'admin' | 'privacy';
 
 function AppInner() {
   const { theme, toggle } = useTheme();
@@ -34,29 +35,6 @@ function AppInner() {
   const [interstitialOpen, setInterstitialOpen] = useState(false);
   const [pendingResult, setPendingResult] = useState(false);
 
-  // useEffect(() => {
-  //   const showBanner = async () => {
-  //     try {
-  //       await AdMob.initialize();
-  //       await AdMob.showBanner({
-  //         adId: adConfig.unitIds.banner,
-  //         adSize: BannerAdSize.ADAPTIVE_BANNER,
-  //         position: BannerAdPosition.BOTTOM_CENTER,
-  //         margin: 0,
-  //         isTesting: false,
-  //       });
-  //     } catch (error) {
-  //       console.error('AdMob Banner Error:', error);
-  //     }
-  //   };
-
-  //   showBanner();
-
-  //   return () => {
-  //     AdMob.removeBanner().catch(() => { });
-  //   };
-  // }, []);
-
 
   useEffect(() => {
     const showBanner = async () => {
@@ -68,7 +46,7 @@ function AppInner() {
           adSize: BannerAdSize.BANNER,
           position: BannerAdPosition.BOTTOM_CENTER,
           margin: 0,
-          isTesting: true,
+          isTesting: adConfig.testing,
         });
 
         console.log('[APP BANNER] Banner shown');
@@ -278,6 +256,9 @@ function AppInner() {
           onToggleTheme={toggle}
           onExit={exitToHome}
         />
+      )}
+      {route === 'privacy' && (
+        <PrivacyPolicyPage />
       )}
 
       <BottomNav
